@@ -1,0 +1,17 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: web-lb
+spec:
+  tls:
+  - hosts:
+    - web.devopssec.com
+    secretName: web-secret   # 使用之前创建的secret kubectl create secret tls web-secret --key server.key --cert server.crt
+  rules:
+  - host: web.devopssec.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: web-service
+          servicePort: 80

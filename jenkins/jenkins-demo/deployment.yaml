@@ -1,0 +1,20 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: jenkins-demo
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        app: jenkins-demo
+    spec:
+      containers:
+      - image: harbor.devopssec.cn/demo/jenkins-demo:<BUILD_TAG>
+        imagePullPolicy: IfNotPresent
+        name: jenkins-demo
+        env:
+        - name: branch
+          value: <BRANCH_NAME>
+      imagePullSecrets:
+      - name: registry-secret
