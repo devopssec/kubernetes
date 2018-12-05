@@ -1,0 +1,94 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-prospectors
+  labels:
+    k8s-app: filebeat
+    kubernetes.io/cluster-service: "true"
+data:
+  nginx-access.yml: |-
+    - type: log
+      enabled: true
+      paths:
+        - /var/log/nginx/access.log
+      processors:
+        - add_kubernetes_metadata:
+            in_cluster: true
+# 上面的配置主要是用于收集日志的位置指定
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: filebeat-nginx
+  namespace: default
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        k8s-app: filebeat-nginx
+    spec:
+      serviceAccountName: filebeat
+      containers:
+      # filebeat收集日志容器
+      - image: docker.elastic.co/beats/filebeat:6.3.2
+        # filebeat启动时指定配置文件，默认是/usr/share/filebeat/filebeat.yml
+        args: [
+          "-c", "/etc/filebeat/filebeat.yml",
+          "-e",
+        ]
+        name: filebeat
+        # 配置变量，变量设置在filebeat-config.yaml文件中
+        env:
+        - name: ELASTICSEARCH_INDEX
+          value: 'filebeat-nginx-access'
+        - name: ELASTICSEARCH_HOST
+          value: elasticsearch
+        - name: ELASTICSEARCH_PORT
+          value: "9200"
+        - name: ELASTIC_CLOUD_ID
+          value:
+        - name: ELASTIC_CLOUD_AUTH
+          value:
+        volumeMounts:
+        # 挂载filebeat配置文件
+        - name: config
+          mountPath: /etc/filebeat/filebeat.yml
+          readOnly: true
+          subPath: filebeat.yml
+        # 挂载filebeat配置文件
+        - name: prospectors
+          mountPath: /usr/share/filebeat/prospectors.d
+        # 挂载filebeat数据目录
+        - name: data
+          mountPath: /usr/share/filebeat/data
+        # 挂载应用日志到filebeat容器的/var/log/nginx目录，方便filebeat收集
+        - name: nginx-logs
+          mountPath: /var/log/nginx
+      # 应用服务容器
+      - image: nginx:1.10.3
+        name : nginx
+        ports:
+        - containerPort: 80
+        # 挂载应用日志
+        volumeMounts:
+        - name: nginx-logs
+          mountPath: /var/log/nginx
+      volumes:
+      #  挂载filebeat配置文件
+      - name: config
+        configMap:
+          # 设置权限为0644，需要让filebeat用户有可读权限。默认权限是777
+          defaultMode: 0644
+          name: filebeat-config
+      # 挂载filebeat配置文件，该文件主要用于配置日志收集位置，收集日志类别
+      - name: prospectors
+        configMap:
+          # 设置权限为0644，需要让filebeat用户有可读权限。默认权限是777
+          defaultMode: 0644
+          name: filebeat-prospectors
+      - name: data
+        emptyDir: {}
+      - name: nginx-logs
+        emptyDir: {}
